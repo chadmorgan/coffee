@@ -1,0 +1,9 @@
+variable,factor,level,value
+grind_size,factor_1,-1,3
+grind_size,factor_1,+1,16
+grams_coffee,factor_2,-1,10
+grams_coffee,factor_2,+1,20
+water_temp,factor_3,-1,175
+water_temp,factor_3,+1,200
+steep_time,factor_4,-1,30
+steep_time,factor_4,+1,60
