@@ -1,0 +1,138 @@
+---
+title: "Coffee experiment anlysis"
+output:
+  github_document:
+    toc: true
+---
+
+```{r}
+library(tidyverse)
+theme_set(theme_minimal())
+```
+
+
+## Assemble the design matrix
+
+Load the fractional design...
+
+```{r}
+design <- read.csv('half_factorial_design_four.csv',stringsAsFactors = FALSE)
+print(design)
+```
+
+
+...and the values of the factor levels
+
+```{r}
+levels <- read.csv('factor_levels.csv',stringsAsFactors = FALSE)
+print(levels)
+``` 
+
+
+Reshape the design matrix so it is easier to join with the levels
+
+```{r}
+design_long <- pivot_longer(design,cols=c(
+  'factor_1','factor_2','factor_3','factor_4'
+), names_to="factor", values_to = "level")
+head(design_long)
+```
+
+
+Join design with levels
+
+```{r}
+design_levels_long <- design_long %>% inner_join(levels, by = c("factor","level"))
+head(design_levels_long)
+```
+
+
+Now reshape back to wide format
+
+```{r}
+design_levels <- pivot_wider(design_levels_long, id_cols='run', names_from = 'variable', values_from = 'value')
+print(design_levels)
+```
+
+## Read in results data
+
+```{r}
+results <- read.csv('run_results.csv',stringsAsFactors = FALSE)
+results_levels <- results %>% inner_join(design_levels, by= 'run')
+str(results_levels)
+```
+
+### Quick look at the correlation between outcome variables
+
+Plot our outcomes: acidity, bitterness, and overall enjoyment
+
+```{r}
+ggplot(results_levels,aes(acid,bitter,color=overall))+geom_point()+
+  scale_color_gradient(high='red',low='blue')+
+  xlim(c(0,10))+ylim(c(0,10))
+```
+
+Regress overall enjoyment on bitterness and acidity
+
+```{r}
+summary(lm(overall ~ acid * bitter, data=results_levels))
+```
+
+So, bitterness seems to contribute pretty much soley to my enjoyment of the coffee. 
+
+Of course I was using the same blend of beans throughout (Holy Mountain from [Chromatic Coffee](https://www.chromaticcoffee.com/)).
+Description of [Holy Mountain blend](https://www.chromaticcoffee.com/holy-mountain-blend/) from their site: 
+
+> This year's Holy Mountain is resonant, and darkly bright, if you can somehow picture that. Imagine a heavy bodied, creamy and velvety shot of classic espresso with tropical fruit notes and a richly dark single origin cacao from Ecuador thats been roasted perfectly. It also makes a loud and dense cup of coffee. We're pretty focused on mouthfeel with this one so revel in its textural journey! A three bean blend with a PNG Kunjin base, a Honduras Parainema micro-lot bridge, and a robust and fruited Amazonian coffee our green buyer bought at auction where he got the #1, #2, #3, and #4 winners! Prepare for an awakening.
+
+
+## Analysis of experimental results
+
+### Acidity Main Effects
+
+```{r}
+acid_main_effects <- lm(acid ~ water_temp + grind_size + grams_coffee + steep_time, data=results_levels)
+summary(acid_main_effects)
+```
+
+### Bitterness Main Effects
+
+```{r}
+bitter_main_effects <- lm(bitter ~ water_temp + grind_size + grams_coffee + steep_time, data=results_levels)
+summary(bitter_main_effects)
+```
+
+
+### Overall main effects
+
+```{r}
+overall_main_effects <- lm(overall ~ water_temp + grind_size + grams_coffee + steep_time, data=results_levels)
+summary(overall_main_effects)
+```
+
+### Subsequent models
+
+Remove grind size variable and add two-way interaction terms
+
+
+```{r}
+overall_model2 <- lm(overall ~ water_temp*grams_coffee + water_temp*steep_time + steep_time*grams_coffee, data=results_levels)
+summary(overall_model2)
+```
+
+
+Model above is saturated, remove interactions
+
+```{r}
+overall_model3 <- lm(overall ~ water_temp + grams_coffee + steep_time, data=results_levels)
+summary(overall_model3)
+```
+
+
+
+## Initial conclusions
+
+- Going through this experiment, I think I have learned what I want to achieve- a robust, bitter cup with lower acidity.
+- More coffee beans in grams -> more bitterness, more acidity
+- It looks like 200F water and shorter steep times may be better, but I think we need more data
+- Looks like I will need to do this again to gather more data... not surprising
