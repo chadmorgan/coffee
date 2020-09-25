@@ -6,6 +6,7 @@ output:
 ---
 
 ```{r}
+library(emmeans)
 library(tidyverse)
 theme_set(theme_minimal())
 ```
@@ -26,7 +27,7 @@ print(design)
 ```{r}
 levels <- read.csv('factor_levels.csv',stringsAsFactors = FALSE)
 print(levels)
-``` 
+```
 
 
 Reshape the design matrix so it is easier to join with the levels
@@ -54,20 +55,25 @@ design_levels <- pivot_wider(design_levels_long, id_cols='run', names_from = 'va
 print(design_levels)
 ```
 
+## Verify orthogonality of factors
+```{r}
+print(cov(data.matrix(design_levels[,-1])))
+```
+
+
 ## Read in results data
 
 ```{r}
 results <- read.csv('run_results.csv',stringsAsFactors = FALSE)
-results_levels <- results %>% inner_join(design_levels, by= 'run')
-str(results_levels)
 ```
+
 
 ### Quick look at the correlation between outcome variables
 
 Plot our outcomes: acidity, bitterness, and overall enjoyment
 
 ```{r}
-ggplot(results_levels,aes(acid,bitter,color=overall))+geom_point()+
+ggplot(results,aes(acid,bitter,color=overall))+geom_point()+
   scale_color_gradient(high='red',low='blue')+
   xlim(c(0,10))+ylim(c(0,10))
 ```
@@ -75,15 +81,40 @@ ggplot(results_levels,aes(acid,bitter,color=overall))+geom_point()+
 Regress overall enjoyment on bitterness and acidity
 
 ```{r}
-summary(lm(overall ~ acid * bitter, data=results_levels))
+summary(lm(overall ~ acid * bitter, data=results))
 ```
 
-So, bitterness seems to contribute pretty much soley to my enjoyment of the coffee. 
+So, bitterness seems to contribute pretty much soley to my enjoyment of the coffee.
 
 Of course I was using the same blend of beans throughout (Holy Mountain from [Chromatic Coffee](https://www.chromaticcoffee.com/)).
-Description of [Holy Mountain blend](https://www.chromaticcoffee.com/holy-mountain-blend/) from their site: 
+Description of [Holy Mountain blend](https://www.chromaticcoffee.com/holy-mountain-blend/) from their site:
 
 > This year's Holy Mountain is resonant, and darkly bright, if you can somehow picture that. Imagine a heavy bodied, creamy and velvety shot of classic espresso with tropical fruit notes and a richly dark single origin cacao from Ecuador thats been roasted perfectly. It also makes a loud and dense cup of coffee. We're pretty focused on mouthfeel with this one so revel in its textural journey! A three bean blend with a PNG Kunjin base, a Honduras Parainema micro-lot bridge, and a robust and fruited Amazonian coffee our green buyer bought at auction where he got the #1, #2, #3, and #4 winners! Prepare for an awakening.
+
+
+## impute the missing water grams value
+
+```{r}
+results[is.na(results$water_grams),'water_grams'] <- median(results$water_grams,na.rm=TRUE)
+ggplot(results,aes(water_grams))+geom_boxplot()
+```
+
+
+
+```{r}
+results_levels <- results %>% inner_join(design_levels, by= 'run')
+str(results_levels)
+```
+
+##
+```{r}
+x_vars <- c('grind_size','grams_coffee','water_temp','steep_time')
+cor(data.matrix(results_levels[,c(x_vars,'water_grams')]))
+```
+
+
+
+
 
 
 ## Analysis of experimental results
@@ -112,22 +143,26 @@ summary(overall_main_effects)
 
 ### Subsequent models
 
-Remove grind size variable and add two-way interaction terms
-
+Remove grind size variable
 
 ```{r}
-overall_model2 <- lm(overall ~ water_temp*grams_coffee + water_temp*steep_time + steep_time*grams_coffee, data=results_levels)
-summary(overall_model2)
+overall_model_simplified <- lm(overall ~ water_temp + grams_coffee + steep_time, data=results_levels)
+summary(overall_model_simplified)
 ```
 
 
-Model above is saturated, remove interactions
-
 ```{r}
-overall_model3 <- lm(overall ~ water_temp + grams_coffee + steep_time, data=results_levels)
-summary(overall_model3)
+summary(aov(overall_model_simplified))
 ```
 
+
+```{r}
+emmeans(overall_model_simplified,~grams_coffee)
+```
+
+```{r}
+ggplot(results_levels,aes(grams_coffee,overall))+geom_point()
+```
 
 
 ## Initial conclusions
